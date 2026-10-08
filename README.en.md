@@ -152,11 +152,50 @@ dsh plugin --profile web add git+https://github.com/ArvinQi/dsh-mcp.git
 dsh plugin --profile web add link:<absolute path to this repo>
 ```
 
-> Note: with a local `link:` install, the plugin directory needs a `node_modules -> $DSH_HOME/profiles/node_modules`
-> symlink (development-only, not committed); otherwise the linked symlink is realpath-resolved and `@deepseek-ai/*`
-> cannot be resolved.
+> ⚠️ **A `link:` install must create a `node_modules` link in the plugin directory, or the plugin
+> cannot activate.**
+>
+> `link:` makes the profile's `node_modules/<name>` point at **this repository**, and Node
+> realpath-resolves ESM imports to the repository's real path. The repo has no `node_modules`, so
+> every `@deepseek-ai/*` import in `lib/index.js` fails and the boot log shows
+> `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`.
+>
+> The link target must be the layer that resolves the host's runtime modules (it needs
+> `@deepseek-ai/*`, `js-yaml`, `zod` **and** `@modelcontextprotocol/client`). Two workable targets:
+>
+> ```powershell
+> # Target A (recommended): the host install's node_modules — most complete
+> New-Item -ItemType Junction `
+>   -Path '<repo absolute path>\node_modules' `
+>   -Target '<DSH install dir>\node_modules'
+>
+> # Target B: the profile's module fallback layer
+> New-Item -ItemType Junction `
+>   -Path '<repo absolute path>\node_modules' `
+>   -Target "$env:USERPROFILE\.dsh\profiles\node_modules"
+> ```
+>
+> Target B lacks `@modelcontextprotocol/client` in some environments (that directory only exposes
+> `sdk`, and it may be a broken link); use target A there. To verify, run
+> `node -e "import('./lib/index.js').then(()=>console.log('OK')).catch(e=>console.error(e.message))"`:
+> `OK` means it works; `Cannot find package '...'` means that target layer lacks the package, so
+> switch targets.
+>
+> This link is **development-only**, is gitignored, and must be recreated after a fresh clone or on
+> another machine.
 
-### 2. Registration (all install options)
+### 2. Registration
+
+`dsh-mcp` declares `dsh.bundle.patch` in `package.json` (pointing at `cordis.patch.yml` in the
+repository root), so `dsh plugin add` registers the bundle automatically — **no manual profile edit
+is needed**.
+
+> Version note: packages **1.12.1 and earlier** did not declare `dsh.bundle`, and installing one
+> fails with "这个包没有声明组合包，不能作为插件管理" (the package declares no bundle). If you are on
+> one of those, upgrade to **1.13.0+**; no manual registration row is required afterwards.
+
+<details>
+<summary>Manual registration (old versions / troubleshooting only)</summary>
 
 Append to `$DSH_HOME/profiles/web/cordis.patch.yml` (`$DSH_HOME` defaults to `~/.dsh`):
 
@@ -166,9 +205,8 @@ Append to `$DSH_HOME/profiles/web/cordis.patch.yml` (`$DSH_HOME` defaults to `~/
       name: dsh-mcp
 ```
 
-> ⚠️ **This step is mandatory**: dsh-mcp does not declare `dsh.bundle`, so `dsh plugin add` only
-> installs the package into the profile — **it does not activate the plugin**. Without the
-> registration row the plugin never mounts.
+For versions that declare the bundle this row is **redundant** (it double-mounts the plugin).
+</details>
 
 Then **restart `dsh web`** and **hard-refresh the browser** (`Cmd/Ctrl + Shift + R`):
 
@@ -184,14 +222,39 @@ Then **restart `dsh web`** and **hard-refresh the browser** (`Cmd/Ctrl + Shift +
 
 ### 4. Troubleshooting
 
+**Q0: the boot log says `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`?**
+
+That is a **host-half dependency resolution failure**, unrelated to the bundle declaration (a
+different layer). With a local `link:` install it is almost guaranteed until the repo gets a
+`node_modules` link (see the warning under install option 3):
+
+1. Reproduce it and read the full error:
+
+   ```sh
+   node -e "import('./lib/index.js').catch(e => console.error(e.message))"
+   ```
+
+   Typical: `Cannot find package '@deepseek-ai/cordis' imported from .../lib/index.js`.
+2. Check whether the repo root has a `node_modules` (`link:` installs require it, and it must be a
+   **link/junction**, not an ordinary directory).
+3. Recreate that link as described in the warning under option 3. The target layer needs
+   `@deepseek-ai/*`, `js-yaml`, `zod` **and** `@modelcontextprotocol/client`; on this machine the
+   host install's `node_modules` is the most complete.
+4. Re-run step 1: printing the export list means it is fixed — then restart `dsh web`.
+
+> Note: `node -e` runs outside DSH, so it only proves the modules resolve. The `dsh web` boot log is
+> the final word.
+
 **Q1: No "MCP" entry in Settings after installing?**
 
 Check in order:
 
-1. **Is the plugin registered?** Confirm `$DSH_HOME/profiles/web/cordis.patch.yml` has the
-   `- insert: [{ id: dsh-mcp, name: dsh-mcp }]` row (`id`/`name` must exactly match the package
-   name `dsh-mcp`). `dsh plugin add` does not equal activation — **without the registration row
-   the plugin never mounts**.
+1. **Are you on an old version?** ≤ 1.12.1 declares no bundle and needs the manual row (current
+   versions register automatically). If install fails with "这个包没有声明组合包", upgrade to
+   1.13.0+ and reinstall. When troubleshooting, check whether
+   `$DSH_HOME/profiles/web/cordis.patch.yml` carries `- insert: [{ id: dsh-mcp, name: dsh-mcp }]`
+   (`id`/`name` must exactly match the package name `dsh-mcp`). Note: adding that row on a version
+   that already declares the bundle **double-mounts the plugin**.
 2. **Did you restart `dsh web`?** Refreshing the browser is not enough — the settings entry comes
    from the client roster, and roster changes require **restarting the process**.
 3. **Did you hard-refresh the browser?** After the restart use `Cmd/Ctrl + Shift + R`

@@ -12,6 +12,35 @@
 - **支持版本**：**dsh `0.1.6-alpha.2`** —— 本插件在 `0.1.6-alpha.2` 上开发与验证（`package.json` → `dsh.supported` 同步声明）。DSH 与插件版本不匹配时，设置页会给出排查诊断（核对 `cordis.patch.yml` 注册行 → 重启 `dsh web` → 硬刷新 → 同步升级）。
 - **发版约定**：每个版本条目都要声明 `- **支持版本**：dsh <版本>`，并在 GitHub Release notes 中同步。Release 正文用**中文**（与本文档一致），标题层级与条目一致。
 
+## [1.13.0] - 2026-10-07
+
+- **支持版本**：**dsh `0.1.6-alpha.2`**
+
+### 修复
+
+- **声明组合包 `dsh.bundle`，修复 `dsh plugin add` 报「这个包没有声明组合包，不能作为插件管理」**：
+  `package.json` 新增 `dsh.bundle.patch` 指向仓库根目录的 `cordis.patch.yml`，安装即自动注册
+  插件行，**无需再手动修改 profile 的 `cordis.patch.yml`**。
+- `cordis.patch.yml` 已加入 `files`，随 npm 包一并发布（此前 1.12.1 及更早版本缺失该声明）。
+
+### 修复（`link:` 安装无法激活）
+
+- **补齐 `peerDependencies`**：宿主半部裸 import 的 10 个 `@deepseek-ai/*` 运行时段依赖
+  （`cordis`、`cordis-plugin-include`、`dsh-attachment`、`dsh-credentials`、`dsh-storage-domain`、
+  `dsh-subprocess`、`dsh-timeout`、`dsh-tools`、`dsh-typert-protocol`、`schemastery`）此前**一个都
+  没声明**，现全部声明为 optional peer，与同类插件（`dsh-config-manager`、`dsh-mcp-client`）一致。
+- **`link:` 安装需要仓库内 `node_modules` 链接**：`link:` 让 profile 的 `node_modules/<name>`
+  指向本仓库，Node realpath 解析后从仓库真实路径向上查找，仓库没有 `node_modules` 时
+  `@deepseek-ai/*` 全部解析失败，启动日志报
+  `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`。README 现已给出可执行的
+  链接创建命令、目标层判据与自检方法。
+
+### 文档
+
+- 中英文 README 的安装步骤改为「自动注册」，手动注册行降级为旧版本/排查用途，并说明
+  对已声明组合包的版本重复添加该行会**重复挂载**。
+- 新增排查条目 Q0（激活失败 / `failed to import`）与 Q1 的版本提示。
+
 ## [1.12.1] - 2026-10-07
 
 - **支持版本**：**dsh `0.1.6-alpha.2`**

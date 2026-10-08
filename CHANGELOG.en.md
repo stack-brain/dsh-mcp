@@ -12,6 +12,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Supported DSH version**: **dsh `0.1.6-alpha.2`** — developed and verified on `0.1.6-alpha.2` (declared in `package.json` → `dsh.supported`). When the DSH and plugin versions do not match, the Settings page reports a diagnosis (check the `cordis.patch.yml` row → restart `dsh web` → hard-refresh → upgrade both sides).
 - **Release convention**: every version entry states `- **Supported DSH version**: dsh <version>`, mirrored in the GitHub Release notes. The release body is written in **Chinese** (matching [CHANGELOG.md](CHANGELOG.md)), with heading levels mirroring the entry.
 
+## [1.13.0] - 2026-10-07
+
+- **Supported DSH version**: **dsh `0.1.6-alpha.2`**
+
+### Fixed
+
+- **Declare the bundle (`dsh.bundle`), fixing "这个包没有声明组合包，不能作为插件管理" on
+  `dsh plugin add`**: `package.json` now carries `dsh.bundle.patch` pointing at `cordis.patch.yml`
+  in the repository root, so installing the package registers the plugin row automatically —
+  **no manual edit of the profile's `cordis.patch.yml` is needed any more**.
+- `cordis.patch.yml` was added to `files` so it ships with the npm package (missing entirely in
+  1.12.1 and earlier).
+
+### Fixed (`link:` installs could not activate)
+
+- **Declared `peerDependencies`**: the ten `@deepseek-ai/*` runtime packages the host half imports
+  bare (`cordis`, `cordis-plugin-include`, `dsh-attachment`, `dsh-credentials`,
+  `dsh-storage-domain`, `dsh-subprocess`, `dsh-timeout`, `dsh-tools`, `dsh-typert-protocol`,
+  `schemastery`) were **all missing**; they are now optional peers, matching sibling plugins
+  (`dsh-config-manager`, `dsh-mcp-client`).
+- **A `link:` install needs a `node_modules` link inside the repo**: `link:` points the profile's
+  `node_modules/<name>` at this repository, and Node realpath-resolves upward from the repository's
+  real path. With no `node_modules` there, every `@deepseek-ai/*` import fails and the boot log
+  reports `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`. The READMEs now give
+  runnable link commands, how to pick the target layer, and a self-check.
+
+### Documentation
+
+- The install steps in both READMEs now describe automatic registration; the manual row is demoted
+  to old-version/troubleshooting use, noting that adding it on a bundle-declaring version
+  **double-mounts the plugin**.
+- Added troubleshooting entry Q0 (activation failure / `failed to import`) and the version note in Q1.
+
 ## [1.12.1] - 2026-10-07
 
 - **Supported DSH version**: **dsh `0.1.6-alpha.2`**

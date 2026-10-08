@@ -157,11 +157,46 @@ dsh plugin --profile web add git+https://github.com/ArvinQi/dsh-mcp.git
 dsh plugin --profile web add link:<本仓库绝对路径>
 ```
 
-> 注意：本地 `link:` 安装时，插件目录内含 `node_modules -> $DSH_HOME/profiles/node_modules`
-> symlink（本机开发用，不入库），否则 `link:` 安装的 symlink 被 realpath 后无法解析
-> `@deepseek-ai/*`。
+> ⚠️ **`link:` 安装必须在插件目录建 `node_modules` 链接，否则插件无法激活。**
+>
+> `link:` 会让 profile 的 `node_modules/<包名>` 成为指向**本仓库**的链接，而 Node 解析 ESM 时
+> 会 realpath 到仓库真实路径——本仓库没有 `node_modules`，于是 `lib/index.js` 的
+> `@deepseek-ai/*` 全部解析失败，表现为启动日志里的
+> `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`。
+>
+> 链接目标必须是**能解析到宿主运行时模块的那一层**（要同时含 `@deepseek-ai/*`、
+> `js-yaml`、`zod`、`@modelcontextprotocol/client`）。两种可用的目标：
+>
+> ```powershell
+> # 目标 A（推荐）：宿主安装目录的 node_modules —— 依赖最全
+> New-Item -ItemType Junction `
+>   -Path '<本仓库绝对路径>\node_modules' `
+>   -Target '<DSH 安装目录>\node_modules'
+>
+> # 目标 B：profile 的模块 fallback 层
+> New-Item -ItemType Junction `
+>   -Path '<本仓库绝对路径>\node_modules' `
+>   -Target "$env:USERPROFILE\.dsh\profiles\node_modules"
+> ```
+>
+> 目标 B 在部分环境缺少 `@modelcontextprotocol/client`（该目录只暴露了 `sdk`，且可能是
+> 断链），此时改用目标 A。判定方法：建完后执行
+> `node -e "import('./lib/index.js').then(()=>console.log('OK')).catch(e=>console.error(e.message))"`，
+> 输出 `OK` 即成功；报 `Cannot find package '...'` 就说明目标层缺该包，换另一个目标。
+>
+> 该链接是**本机开发用**，已在 `.gitignore` 中忽略、不入库；换机器 / 重新克隆后需要重建。
 
-### 2. 注册与生效（三种方式通用）
+### 2. 注册与生效
+
+`dsh-mcp` 已在 `package.json` 声明 `dsh.bundle.patch`（指向仓库根目录的 `cordis.patch.yml`），
+`dsh plugin add` 会自动注册该组合包，**无需手动改动 profile 配置文件**。
+
+> 版本说明：**1.12.1 及更早**的包未声明 `dsh.bundle`，安装时会直接报
+> 「这个包没有声明组合包，不能作为插件管理」。若你装的是这些旧版本，请升级到
+> **1.13.0+**；升级后无需再手动追加注册行。
+
+<details>
+<summary>手动注册（仅旧版本 / 需要排查时）</summary>
 
 在 `$DSH_HOME/profiles/web/cordis.patch.yml`（`$DSH_HOME` 默认 `~/.dsh`）追加：
 
@@ -171,8 +206,8 @@ dsh plugin --profile web add link:<本仓库绝对路径>
       name: dsh-mcp
 ```
 
-> ⚠️ **这一步必须手动完成**：dsh-mcp 未声明 `dsh.bundle`，`dsh plugin add` 只负责把包装进
-> profile，**不会自动进入运行组合**。漏掉注册行则插件完全不生效。
+对于已声明组合包的版本，手写这一行是**多余的**（会重复挂载）。
+</details>
 
 然后**重启 `dsh web`**，并**硬刷新浏览器**（`Cmd/Ctrl + Shift + R`）：
 
@@ -186,13 +221,34 @@ dsh plugin --profile web add link:<本仓库绝对路径>
 
 ### 4. 常见问题排查
 
+**Q0：启动日志报 `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`？**
+
+这是**宿主半部的依赖解析失败**，与组合包声明无关（两者是不同层次的问题）。本机上按
+`link:` 安装时几乎必然遇到，原因是仓库目录缺少 `node_modules`（详见「方式三」下的警示）：
+
+1. 直接复现并看到完整报错：
+
+   ```sh
+   node -e "import('./lib/index.js').catch(e => console.error(e.message))"
+   ```
+
+   典型输出：`Cannot find package '@deepseek-ai/cordis' imported from .../lib/index.js`。
+2. 检查仓库根目录是否存在 `node_modules`（`link:` 安装必需，且是**链接/junction**，不是普通目录）。
+3. 按「方式三」的警示重建该链接；目标层必须同时含 `@deepseek-ai/*`、`js-yaml`、`zod`、
+   `@modelcontextprotocol/client`。本机验证：宿主安装目录的 `node_modules` 依赖最全。
+4. 重建后再次执行第 1 步，输出 `OK`/导出列表即已修复，然后重启 `dsh web`。
+
+> 注：`node -e` 在 DSH 之外运行，只能证明模块可解析；`dsh web` 启动日志才是最终判据。
+
 **Q1：安装后设置页看不到「MCP」？**
 
 按顺序检查：
 
-1. **是否已注册插件行**：确认 `$DSH_HOME/profiles/web/cordis.patch.yml` 已追加
+1. **是否为旧版本**：≤ 1.12.1 未声明组合包、需要手动注册行（当前版本已自动注册，
+   无需手写）。若安装时报「这个包没有声明组合包」，请升级到 1.13.0+ 后重新安装；
+   确需排查时，可确认 `$DSH_HOME/profiles/web/cordis.patch.yml` 中是否存在
    `- insert: [{ id: dsh-mcp, name: dsh-mcp }]`（`id`/`name` 必须与插件包名 `dsh-mcp` 完全一致）。
-   `dsh plugin add` 不等于生效，**没有注册行插件不会挂载**。
+   注意：**已在 `dsh.bundle` 中注册过的版本再加这一行会重复挂载**。
 2. **是否重启了 `dsh web`**：仅刷新浏览器不够——设置页入口来自 client roster，
    插件集变更必须**重启进程**才进入 roster。
 3. **是否硬刷新了浏览器**：重启后用 `Cmd/Ctrl + Shift + R`（Windows/Linux：`Ctrl + Shift + R`）

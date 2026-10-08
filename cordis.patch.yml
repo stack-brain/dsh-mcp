@@ -1,0 +1,15 @@
+# dsh-mcp bundle patch: mount the host plugin under its package name,
+# resolved through the profile's node_modules.
+#
+# Declaring `dsh.bundle.patch` in package.json is what makes `dsh plugin add`
+# register this row, so installing the package is enough to enter the running
+# composition. Before this file existed the row had to be appended to
+# `$DSH_HOME/profiles/<name>/cordis.patch.yml` by hand, and the installer
+# rejected the package outright with "这个包没有声明组合包".
+#
+# Every knob has a schema default in lib/index.js; override them from the
+# profile's own cordis.patch.yml by targeting this row's id (a patch replaces
+# the whole config, so restate every key you own).
+- insert:
+    - id: dsh-mcp
+      name: dsh-mcp
