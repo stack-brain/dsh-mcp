@@ -37,6 +37,10 @@
 
 ### 文档
 
+- **仓库归属改为 `stack-brain/dsh-mcp`**：`package.json` 的 `repository`/`homepage`/`bugs`、
+  中英 README 的 git 安装命令与 dshfind 徽章、CHANGELOG 中的 issue 链接统一指向新归属
+  （此前均为 `ArvinQi/dsh-mcp`，按旧地址安装会指向错误仓库）。`author` 字段是作者署名，保持不变。
+
 - 中英文 README 的安装步骤改为「自动注册」，手动注册行降级为旧版本/排查用途，并说明
   对已声明组合包的版本重复添加该行会**重复挂载**。
 - 新增排查条目 Q0（激活失败 / `failed to import`）与 Q1 的版本提示。
@@ -47,8 +51,8 @@
 
 ### 修复
 
-- **stdio 服务器现在真的能拿到进程级环境变量（[#11](https://github.com/ArvinQi/dsh-mcp/issues/11)）**：`global_env` 此前只用于 `streamable-http` 的请求头替换，stdio 分支把它整个丢掉；而父进程环境也不是替代通道——`dsh-mcp-client` 会把 `KEY`/`TOKEN`/`SECRET`/`PASSWORD` 形状的父环境变量剥离后再与服务器 env 合并。于是像 `tavily`（`npx -y tavily-mcp`）这类只吃环境变量、且表单不再编辑 per-server env 的 stdio 服务器，只能以「无密钥」状态启动（表现为 `tavily_research` 报 "requires an API key"，而 keyless 的 `tavily_search`/`tavily_extract` 正常）。现在 `toClientConfig()` 的 stdio 分支把 `global_env` 与服务器自身 env 合并后注入子进程，同名时**服务器 env 优先**；设置页提示、README 中英与本文档同步改为「stdio 子进程注入 + HTTP 请求头引用」的实际作用域
-- **凭据引用更新后的自动重挂载恢复正常（[#12](https://github.com/ArvinQi/dsh-mcp/issues/12)）**：`managedServerId()` 用 `lastIndexOf("_")` 从 `DSH_MCP_<serverId>_<变量名>` 反解服务器 id，而 id（`mcp_<12位十六进制>`）与变量名都可能含 `_`：只要变量名带下划线（`TAVILY_API_KEY`、`MY_VAR`）就切错位置、解析出表里不存在的 id，`credentials/reference-updated` 处理器于是静默跳过重挂载——**通过凭据管理界面或其它插件轮换密钥后，服务器继续用旧值直到手动刷新**。现在按 id 的固定格式 `mcp_[0-9a-f]{12}` 精确匹配，并对 `DSH_MCP_ENV_*`（进程级）与 `DSH_MCP_OAUTH_*` 引用保持不解析
+- **stdio 服务器现在真的能拿到进程级环境变量（[#11](https://github.com/stack-brain/dsh-mcp/issues/11)）**：`global_env` 此前只用于 `streamable-http` 的请求头替换，stdio 分支把它整个丢掉；而父进程环境也不是替代通道——`dsh-mcp-client` 会把 `KEY`/`TOKEN`/`SECRET`/`PASSWORD` 形状的父环境变量剥离后再与服务器 env 合并。于是像 `tavily`（`npx -y tavily-mcp`）这类只吃环境变量、且表单不再编辑 per-server env 的 stdio 服务器，只能以「无密钥」状态启动（表现为 `tavily_research` 报 "requires an API key"，而 keyless 的 `tavily_search`/`tavily_extract` 正常）。现在 `toClientConfig()` 的 stdio 分支把 `global_env` 与服务器自身 env 合并后注入子进程，同名时**服务器 env 优先**；设置页提示、README 中英与本文档同步改为「stdio 子进程注入 + HTTP 请求头引用」的实际作用域
+- **凭据引用更新后的自动重挂载恢复正常（[#12](https://github.com/stack-brain/dsh-mcp/issues/12)）**：`managedServerId()` 用 `lastIndexOf("_")` 从 `DSH_MCP_<serverId>_<变量名>` 反解服务器 id，而 id（`mcp_<12位十六进制>`）与变量名都可能含 `_`：只要变量名带下划线（`TAVILY_API_KEY`、`MY_VAR`）就切错位置、解析出表里不存在的 id，`credentials/reference-updated` 处理器于是静默跳过重挂载——**通过凭据管理界面或其它插件轮换密钥后，服务器继续用旧值直到手动刷新**。现在按 id 的固定格式 `mcp_[0-9a-f]{12}` 精确匹配，并对 `DSH_MCP_ENV_*`（进程级）与 `DSH_MCP_OAUTH_*` 引用保持不解析
 
 ### 说明
 

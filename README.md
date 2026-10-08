@@ -2,7 +2,7 @@
 
 **[English](README.en.md) | 简体中文**
 
-[![dshfind](https://dshfind.com/api/badge/ArvinQi/dsh-mcp?lang=zh)](https://dshfind.com/zh/plugins/ArvinQi/dsh-mcp?ref=badge)
+[![dshfind](https://dshfind.com/api/badge/stack-brain/dsh-mcp?lang=zh)](https://dshfind.com/zh/plugins/stack-brain/dsh-mcp?ref=badge)
 
 > **支持版本**：`dsh 0.1.6-alpha.2` —— 本插件在 `0.1.6-alpha.2` 上开发与验证，`package.json` → `dsh.supported` 同步声明。DSH 与插件两侧版本不匹配时，设置页会给出排查诊断（检查注册行 → 重启 `dsh web` → 硬刷新 → 同步升级）。
 
@@ -146,9 +146,9 @@ dsh plugin --profile web add dsh-mcp
 **方式二：GitHub git 源**
 
 ```sh
-dsh plugin --profile web add github:ArvinQi/dsh-mcp
+dsh plugin --profile web add github:stack-brain/dsh-mcp
 # 或
-dsh plugin --profile web add git+https://github.com/ArvinQi/dsh-mcp.git
+dsh plugin --profile web add git+https://github.com/stack-brain/dsh-mcp.git
 ```
 
 **方式三：本地开发（link）**
@@ -345,4 +345,4 @@ dsh plugin --profile web add link:<本仓库绝对路径>
 - **每次发版都必须声明支持的 DSH 版本**：在 CHANGELOG 对应条目与 GitHub Release notes 里加一行
   `- **支持版本**：dsh <版本>`，并同步更新 `package.json` 的 `dsh.supported` 与 README 顶部的「支持版本」。
 
-[![dshfind](https://dshfind.com/api/card/ArvinQi/dsh-mcp?lang=zh)](https://dshfind.com/zh/plugins/ArvinQi/dsh-mcp?ref=badge)
+[![dshfind](https://dshfind.com/api/card/stack-brain/dsh-mcp?lang=zh)](https://dshfind.com/zh/plugins/stack-brain/dsh-mcp?ref=badge)

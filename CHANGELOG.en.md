@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Repository ownership moved to `stack-brain/dsh-mcp`**: `package.json`'s
+  `repository`/`homepage`/`bugs`, the git install commands and dshfind badges in both READMEs, and
+  the issue links in this changelog now point at the new owner (all were `ArvinQi/dsh-mcp`, so
+  installing by the old address pointed at the wrong repository). The `author` field stays as it is
+  — that is an attribution, not a path.
+
 - The install steps in both READMEs now describe automatic registration; the manual row is demoted
   to old-version/troubleshooting use, noting that adding it on a bundle-declaring version
   **double-mounts the plugin**.
@@ -51,8 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **stdio servers now actually receive the process-level environment variables ([#11](https://github.com/ArvinQi/dsh-mcp/issues/11))**: `global_env` was only used for `streamable-http` header substitution — the stdio branch dropped it entirely — and the parent process environment is no substitute, because `dsh-mcp-client` strips `KEY`/`TOKEN`/`SECRET`/`PASSWORD`-shaped names out of the inherited env before merging the server's own. So a stdio server that only reads its key from the environment (such as `tavily`, `npx -y tavily-mcp`) and whose per-server env the form no longer edits could only start keyless (it surfaced as `tavily_research` reporting "requires an API key" while keyless `tavily_search`/`tavily_extract` worked). `toClientConfig()`'s stdio branch now merges `global_env` with the server's own env into the child process, with the **per-server entry winning** on a collision; the settings hint, both READMEs and this document now state the real scope (injected into stdio children *and* available to HTTP header substitution)
-- **Automatic remount after a credential update works again ([#12](https://github.com/ArvinQi/dsh-mcp/issues/12))**: `managedServerId()` recovered the server id from `DSH_MCP_<serverId>_<name>` with `lastIndexOf("_")`, but both the id (`mcp_<12 hex>`) and the variable name may contain `_`: as soon as the name had an underscore (`TAVILY_API_KEY`, `MY_VAR`) it split in the wrong place and produced an id that is not in the table, so the `credentials/reference-updated` handler silently skipped the remount — **rotating a key through the credentials UI or another plugin left the server on its old value until a manual refresh**. It now matches the id's fixed shape (`mcp_[0-9a-f]{12}`) exactly, and keeps `DSH_MCP_ENV_*` (process-level) and `DSH_MCP_OAUTH_*` refs unresolved
+- **stdio servers now actually receive the process-level environment variables ([#11](https://github.com/stack-brain/dsh-mcp/issues/11))**: `global_env` was only used for `streamable-http` header substitution — the stdio branch dropped it entirely — and the parent process environment is no substitute, because `dsh-mcp-client` strips `KEY`/`TOKEN`/`SECRET`/`PASSWORD`-shaped names out of the inherited env before merging the server's own. So a stdio server that only reads its key from the environment (such as `tavily`, `npx -y tavily-mcp`) and whose per-server env the form no longer edits could only start keyless (it surfaced as `tavily_research` reporting "requires an API key" while keyless `tavily_search`/`tavily_extract` worked). `toClientConfig()`'s stdio branch now merges `global_env` with the server's own env into the child process, with the **per-server entry winning** on a collision; the settings hint, both READMEs and this document now state the real scope (injected into stdio children *and* available to HTTP header substitution)
+- **Automatic remount after a credential update works again ([#12](https://github.com/stack-brain/dsh-mcp/issues/12))**: `managedServerId()` recovered the server id from `DSH_MCP_<serverId>_<name>` with `lastIndexOf("_")`, but both the id (`mcp_<12 hex>`) and the variable name may contain `_`: as soon as the name had an underscore (`TAVILY_API_KEY`, `MY_VAR`) it split in the wrong place and produced an id that is not in the table, so the `credentials/reference-updated` handler silently skipped the remount — **rotating a key through the credentials UI or another plugin left the server on its old value until a manual refresh**. It now matches the id's fixed shape (`mcp_[0-9a-f]{12}`) exactly, and keeps `DSH_MCP_ENV_*` (process-level) and `DSH_MCP_OAUTH_*` refs unresolved
 
 ### Notes
 

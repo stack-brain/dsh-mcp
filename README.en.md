@@ -1,6 +1,6 @@
 # dsh-mcp — MCP management UI + tool search: stable tool list, cache hits, no context bloat
 
-[![dshfind](https://dshfind.com/api/badge/ArvinQi/dsh-mcp?lang=en)](https://dshfind.com/en/plugins/ArvinQi/dsh-mcp?ref=badge)
+[![dshfind](https://dshfind.com/api/badge/stack-brain/dsh-mcp?lang=en)](https://dshfind.com/en/plugins/stack-brain/dsh-mcp?ref=badge)
 
 > **Supported DSH version**: `dsh 0.1.6-alpha.2` — developed and verified on `0.1.6-alpha.2`, declared in `package.json` → `dsh.supported`. When the DSH and plugin versions do not match, the Settings page shows a diagnosis (check the registration row → restart `dsh web` → hard-refresh → upgrade both sides).
 
@@ -141,9 +141,9 @@ dsh plugin --profile web add dsh-mcp
 **Option 2: GitHub git source**
 
 ```sh
-dsh plugin --profile web add github:ArvinQi/dsh-mcp
+dsh plugin --profile web add github:stack-brain/dsh-mcp
 # or
-dsh plugin --profile web add git+https://github.com/ArvinQi/dsh-mcp.git
+dsh plugin --profile web add git+https://github.com/stack-brain/dsh-mcp.git
 ```
 
 **Option 3: local development (link)**
@@ -373,4 +373,4 @@ Check in order:
 
 See [CHANGELOG.md](CHANGELOG.md). Released under the [MIT License](LICENSE).
 
-[![dshfind](https://dshfind.com/api/card/ArvinQi/dsh-mcp?lang=en)](https://dshfind.com/en/plugins/ArvinQi/dsh-mcp?ref=badge)
+[![dshfind](https://dshfind.com/api/card/stack-brain/dsh-mcp?lang=en)](https://dshfind.com/en/plugins/stack-brain/dsh-mcp?ref=badge)
