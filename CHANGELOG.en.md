@@ -25,6 +25,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cordis.patch.yml` was added to `files` so it ships with the npm package (missing entirely in
   1.12.1 and earlier).
 
+### Fixed (git/https installs could not activate)
+
+- **Declared the missing runtime dependency `js-yaml`**: `lib/cordis-servers.js` has always done
+  `import * as yaml from "js-yaml"`, but `package.json`'s `dependencies` **never declared it**.
+  `js-yaml` exists only inside DSH's own nested `node_modules`, which neither the profile layer nor
+  the user layer can reach, so any install that is not a local `link:` (`github:` / `git+https:` /
+  npm) failed at activation with
+  `Cannot find package 'js-yaml' imported from .../lib/cordis-servers.js` and the plugin never
+  mounted. It is now declared as `^4.1.0` (the code uses js-yaml 4's `yaml.load` API).
+- Root cause: this is the same class as `@modelcontextprotocol/client` and `zod` — **these three
+  pure utility libraries must be written into the plugin's own `node_modules` by the package manager
+  at install time; they must not rely on host resolution.** `@deepseek-ai/*` is the opposite: it must
+  stay in `peerDependencies` for the host to resolve, because `lib/index.js` contains
+  `class McpManagerService extends TypertRemoteService` and must share the host's module instance.
+  Conflating the two classes breaks either way: a missing utility library gives
+  `Cannot find package`; bundling the host framework breaks the Remote protocol.
+
 ### Fixed (`link:` installs could not activate)
 
 - **Declared `peerDependencies`**: the ten `@deepseek-ai/*` runtime packages the host half imports
@@ -32,11 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dsh-storage-domain`, `dsh-subprocess`, `dsh-timeout`, `dsh-tools`, `dsh-typert-protocol`,
   `schemastery`) were **all missing**; they are now optional peers, matching sibling plugins
   (`dsh-config-manager`, `dsh-mcp-client`).
-- **A `link:` install needs a `node_modules` link inside the repo**: `link:` points the profile's
-  `node_modules/<name>` at this repository, and Node realpath-resolves upward from the repository's
-  real path. With no `node_modules` there, every `@deepseek-ai/*` import fails and the boot log
-  reports `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`. The READMEs now give
-  runnable link commands, how to pick the target layer, and a self-check.
+- **A `link:` install needs its dependencies resolvable inside the repo**: `link:` points the
+  profile's `node_modules/<name>` at this repository, and Node realpath-resolves upward from the
+  repository's real path, so resolution falls entirely to the repo. `npm install` supplies the
+  utility libraries from `dependencies`; a junction onto the host install's `@deepseek-ai`
+  subdirectory supplies the framework modules. Without either, the boot log reports
+  `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`. The READMEs now give the
+  commands, the two-class dependency split, and a self-check.
 
 ### Documentation
 

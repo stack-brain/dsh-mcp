@@ -94,7 +94,7 @@ DSH 原生支持在组合里直接声明 MCP 服务器：**一行一台**，`nam
 
 ```
 dsh-mcp/
-├── package.json          name=dsh-mcp；dsh.client 声明；零 npm dependencies
+├── package.json          name=dsh-mcp；dsh.client 声明；dsh.bundle 组合包声明
 ├── lib/
 │   ├── index.js          host 半部（McpManagerService，源自 mcp-manager 构建产物）
 │   ├── cordis-servers.js 读取 patch 层原生声明的 MCP 服务器（1.11.0）
@@ -116,9 +116,14 @@ node scripts/build.mjs
 
 - esbuild 从 DSH 源码 checkout 解析：`$DSH_SOURCE` 未设置时尝试
   `~/.dsh/source/current`。
-- 运行时依赖（`@deepseek-ai/*`、`zod`、`@modelcontextprotocol/sdk`）不装 npm 包，
-  从 `$DSH_HOME/profiles/node_modules`（DSH profiles 模块 fallback，`$DSH_HOME` 默认 `~/.dsh`）解析；构建时经
-  `nodePaths` 指向同一目录。
+- **依赖分两类，别混为一谈**（决定了 git/npm 安装能否成功）：
+  - `@deepseek-ai/*`（宿主框架，如 `dsh-typert-protocol`、`cordis`）**只声明为
+    `peerDependencies`、不打进产物**：`lib/index.js` 里有
+    `class McpManagerService extends TypertRemoteService`，必须是宿主加载的**同一份**模块实例，
+    打包第二份会产生不兼容的类、直接破坏 Remote 协议。这些由**宿主**在运行时解析。
+  - `@modelcontextprotocol/client`、`zod`、`js-yaml` 这类**纯工具库**属于 `dependencies`，
+    安装时进插件自己的 `node_modules`。它们**不可**依赖宿主解析——`@modelcontextprotocol/client`
+    只存在于 DSH 自身的嵌套 `node_modules` 里，profile 层和用户层都够不到。
 - CSS Modules 由 esbuild onLoad 插件处理：样式注入
   `<style data-plugin="dsh-mcp" data-file="…">`，默认导出 identity 类名映射。
 
@@ -157,34 +162,38 @@ dsh plugin --profile web add git+https://github.com/stack-brain/dsh-mcp.git
 dsh plugin --profile web add link:<本仓库绝对路径>
 ```
 
-> ⚠️ **`link:` 安装必须在插件目录建 `node_modules` 链接，否则插件无法激活。**
+> ⚠️ **`link:` 安装必须先让仓库能解析依赖，否则插件无法激活。**
 >
 > `link:` 会让 profile 的 `node_modules/<包名>` 成为指向**本仓库**的链接，而 Node 解析 ESM 时
-> 会 realpath 到仓库真实路径——本仓库没有 `node_modules`，于是 `lib/index.js` 的
-> `@deepseek-ai/*` 全部解析失败，表现为启动日志里的
-> `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`。
+> 会 realpath 到仓库真实路径。于是解析这件事全落在仓库自己身上，需要两类依赖各自可达
+> （见「构建」一节的两类划分）。
 >
-> 链接目标必须是**能解析到宿主运行时模块的那一层**（要同时含 `@deepseek-ai/*`、
-> `js-yaml`、`zod`、`@modelcontextprotocol/client`）。两种可用的目标：
+> **第一步（常规做法）：在仓库根目录装依赖**
 >
-> ```powershell
-> # 目标 A（推荐）：宿主安装目录的 node_modules —— 依赖最全
-> New-Item -ItemType Junction `
->   -Path '<本仓库绝对路径>\node_modules' `
->   -Target '<DSH 安装目录>\node_modules'
->
-> # 目标 B：profile 的模块 fallback 层
-> New-Item -ItemType Junction `
->   -Path '<本仓库绝对路径>\node_modules' `
->   -Target "$env:USERPROFILE\.dsh\profiles\node_modules"
+> ```sh
+> npm install
 > ```
 >
-> 目标 B 在部分环境缺少 `@modelcontextprotocol/client`（该目录只暴露了 `sdk`，且可能是
-> 断链），此时改用目标 A。判定方法：建完后执行
-> `node -e "import('./lib/index.js').then(()=>console.log('OK')).catch(e=>console.error(e.message))"`，
-> 输出 `OK` 即成功；报 `Cannot find package '...'` 就说明目标层缺该包，换另一个目标。
+> 这会把 `dependencies`（`@modelcontextprotocol/client`、`zod`、`js-yaml`）装进仓库的
+> `node_modules`，与真实安装路径一致。但 `@deepseek-ai/*` 是 peer、不会被装上，仍需宿主解析
+> —— 若启动日志报 `Cannot find package '@deepseek-ai/...'`，再补下面的链接。
 >
-> 该链接是**本机开发用**，已在 `.gitignore` 中忽略、不入库；换机器 / 重新克隆后需要重建。
+> **第二步（需要时）：建指向宿主模块的链接**
+>
+> ```powershell
+> # 目标 A（推荐）：宿主安装目录的 node_modules —— @deepseek-ai/* 最全
+> New-Item -ItemType Junction `
+>   -Path '<本仓库绝对路径>\node_modules\@deepseek-ai' `
+>   -Target '<DSH 安装目录>\node_modules\@deepseek-ai'
+> ```
+>
+> 注意链接的是 `@deepseek-ai` **子目录**：直接链整个 `node_modules` 会盖掉第一步装的依赖。
+> 若宿主安装目录下没有你要的包，也可指向 `$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai`。
+>
+> 判定方法：`node -e "import('./lib/index.js').then(()=>console.log('OK')).catch(e=>console.error(e.message))"`，
+> 输出 `OK` 即成功；报哪个包 `Cannot find` 就补哪个。
+>
+> 链接是**本机开发用**，已在 `.gitignore` 中忽略、不入库；换机器 / 重新克隆后需重建。
 
 ### 2. 注册与生效
 
@@ -223,20 +232,28 @@ dsh plugin --profile web add link:<本仓库绝对路径>
 
 **Q0：启动日志报 `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`？**
 
-这是**宿主半部的依赖解析失败**，与组合包声明无关（两者是不同层次的问题）。本机上按
-`link:` 安装时几乎必然遇到，原因是仓库目录缺少 `node_modules`（详见「方式三」下的警示）：
+这是**宿主半部的依赖解析失败**，与组合包声明无关（两者是不同层次的问题）。先复现拿到确切缺失的包名：
 
-1. 直接复现并看到完整报错：
+```sh
+# link: 安装时在仓库根目录执行
+node -e "import('./lib/index.js').catch(e => console.error(e.message))"
+```
 
-   ```sh
-   node -e "import('./lib/index.js').catch(e => console.error(e.message))"
-   ```
+再按缺失的包名分支处理：
 
-   典型输出：`Cannot find package '@deepseek-ai/cordis' imported from .../lib/index.js`。
-2. 检查仓库根目录是否存在 `node_modules`（`link:` 安装必需，且是**链接/junction**，不是普通目录）。
-3. 按「方式三」的警示重建该链接；目标层必须同时含 `@deepseek-ai/*`、`js-yaml`、`zod`、
-   `@modelcontextprotocol/client`。本机验证：宿主安装目录的 `node_modules` 依赖最全。
-4. 重建后再次执行第 1 步，输出 `OK`/导出列表即已修复，然后重启 `dsh web`。
+- **报 `Cannot find package '@deepseek-ai/...'` → `link:` 安装缺链接。**
+  `link:` 让 profile 的 `node_modules/<name>` 指向本仓库，Node realpath 解析后从仓库真实路径
+  向上查找；仓库没有 `node_modules` 时这些宿主框架模块全部解析失败。按「方式三」的警示建
+  链接即可（目标层要含 `@deepseek-ai/*`；本机验证：宿主安装目录的 `node_modules` 最全）。
+
+- **报 `Cannot find package '@modelcontextprotocol/client'`（或 `zod`、`js-yaml`）→ 依赖没装上。**
+  这三个是 `dependencies`，应由安装时的包管理器写进**插件自己的 `node_modules`**。
+  它们**不能**靠宿主解析：`@modelcontextprotocol/client` 只存在于 DSH 自身的嵌套
+  `node_modules` 中，profile 层与用户层都够不到。
+  - 若为 GitHub/git 直接安装：确认装的是 **1.13.0 之后**的版本（早期版本漏声明 `js-yaml`，
+    且 `@modelcontextprotocol/client` 在部分环境解析不到）。
+  - 若为本地 `link:`：直接在仓库根目录 `npm install`（会按 `dependencies` 装好这三个包），
+    比手工建 junction 更贴近真实安装路径。
 
 > 注：`node -e` 在 DSH 之外运行，只能证明模块可解析；`dsh web` 启动日志才是最终判据。
 

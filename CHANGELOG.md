@@ -23,17 +23,32 @@
   插件行，**无需再手动修改 profile 的 `cordis.patch.yml`**。
 - `cordis.patch.yml` 已加入 `files`，随 npm 包一并发布（此前 1.12.1 及更早版本缺失该声明）。
 
+### 修复（git/https 安装无法激活）
+
+- **补声明漏掉的运行时依赖 `js-yaml`**：`lib/cordis-servers.js` 一直 `import * as yaml from "js-yaml"`，
+  但 `package.json` 的 `dependencies` **从未声明它**。`js-yaml` 只存在于 DSH 自身的嵌套
+  `node_modules` 里，profile 层与用户层都够不到，于是任何**非本机 `link:`** 的安装
+  （`github:` / `git+https:` / npm）都会在激活时报
+  `Cannot find package 'js-yaml' imported from .../lib/cordis-servers.js`，插件整体挂不上。
+  现声明为 `^4.1.0`（代码用的是 js-yaml 4 的 `yaml.load` API）。
+- 根因说明：`@modelcontextprotocol/client` 与 `zod` 同类——**这三个纯工具库必须由安装时的包管理器
+  写进插件自己的 `node_modules`，不能依赖宿主解析**；而 `@deepseek-ai/*` 相反，必须以
+  `peerDependencies` 形式留给宿主解析（`lib/index.js` 有
+  `class McpManagerService extends TypertRemoteService`，必须是宿主加载的同一份模块实例）。
+  两类依赖混为一谈就会坏：前者缺失 → `Cannot find package`；后者被打包 → 破坏 Remote 协议。
+
 ### 修复（`link:` 安装无法激活）
 
 - **补齐 `peerDependencies`**：宿主半部裸 import 的 10 个 `@deepseek-ai/*` 运行时段依赖
   （`cordis`、`cordis-plugin-include`、`dsh-attachment`、`dsh-credentials`、`dsh-storage-domain`、
   `dsh-subprocess`、`dsh-timeout`、`dsh-tools`、`dsh-typert-protocol`、`schemastery`）此前**一个都
   没声明**，现全部声明为 optional peer，与同类插件（`dsh-config-manager`、`dsh-mcp-client`）一致。
-- **`link:` 安装需要仓库内 `node_modules` 链接**：`link:` 让 profile 的 `node_modules/<name>`
-  指向本仓库，Node realpath 解析后从仓库真实路径向上查找，仓库没有 `node_modules` 时
-  `@deepseek-ai/*` 全部解析失败，启动日志报
-  `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`。README 现已给出可执行的
-  链接创建命令、目标层判据与自检方法。
+- **`link:` 安装需要仓库自身能解析依赖**：`link:` 让 profile 的 `node_modules/<name>` 指向本仓库，
+  Node realpath 解析后从仓库真实路径向上查找，解析这件事全落在仓库身上。
+  `npm install` 负责从 `dependencies` 装上纯工具库；再用 junction 把宿主的 `@deepseek-ai`
+  子目录链进来补宿主框架模块。两者缺一则启动日志报
+  `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`。README 现已给出命令、
+  两类依赖的划分与自检方法。
 
 ### 文档
 

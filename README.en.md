@@ -88,7 +88,7 @@ Since 1.11.0 those declarations appear in Settings → MCP, badged "cordis decla
 
 ```
 dsh-mcp/
-├── package.json          name=dsh-mcp; dsh.client declaration; zero npm dependencies
+├── package.json          name=dsh-mcp; dsh.client + dsh.bundle declarations
 ├── lib/
 │   ├── index.js          host half (McpManagerService, built from mcp-manager)
 │   ├── cordis-servers.js reads natively declared MCP servers from the patch layers (1.11.0)
@@ -109,9 +109,16 @@ node scripts/build.mjs
 ```
 
 - esbuild is resolved from a DSH source checkout: `$DSH_SOURCE`, or `~/.dsh/source/current` when unset.
-- Runtime dependencies (`@deepseek-ai/*`, `zod`, `@modelcontextprotocol/sdk`) are not installed as npm packages;
-  they resolve from `$DSH_HOME/profiles/node_modules` (DSH profiles module fallback, `$DSH_HOME` defaults to `~/.dsh`);
-  the build points `nodePaths` at the same directory.
+- **Dependencies fall into two classes; conflating them breaks git/npm installs:**
+  - `@deepseek-ai/*` (the host framework — `dsh-typert-protocol`, `cordis`, …) are declared **only as
+    `peerDependencies` and are never bundled**: `lib/index.js` does
+    `class McpManagerService extends TypertRemoteService`, so it must be the **same module instance**
+    the host loaded. A second copy would be an incompatible class and would break the Remote
+    protocol. The **host** resolves these at runtime.
+  - Pure utility libraries — `@modelcontextprotocol/client`, `zod`, `js-yaml` — belong in
+    `dependencies` and land in the plugin's own `node_modules` at install time. They must **not**
+    rely on host resolution: `@modelcontextprotocol/client` exists only inside DSH's own nested
+    `node_modules`, which neither the profile layer nor the user layer can reach.
 - CSS Modules are handled by an esbuild onLoad plugin: styles are injected into a
   `<style data-plugin="dsh-mcp" data-file="…">` tag, and the module default-exports an identity class-name map.
 
@@ -152,36 +159,41 @@ dsh plugin --profile web add git+https://github.com/stack-brain/dsh-mcp.git
 dsh plugin --profile web add link:<absolute path to this repo>
 ```
 
-> ⚠️ **A `link:` install must create a `node_modules` link in the plugin directory, or the plugin
-> cannot activate.**
+> ⚠️ **A `link:` install must first make the repo's dependencies resolvable, or the plugin cannot
+> activate.**
 >
 > `link:` makes the profile's `node_modules/<name>` point at **this repository**, and Node
-> realpath-resolves ESM imports to the repository's real path. The repo has no `node_modules`, so
-> every `@deepseek-ai/*` import in `lib/index.js` fails and the boot log shows
-> `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`.
+> realpath-resolves ESM imports to the repository's real path — so resolution is entirely up to the
+> repo, and both dependency classes (see the two-class split under Build) must be reachable.
 >
-> The link target must be the layer that resolves the host's runtime modules (it needs
-> `@deepseek-ai/*`, `js-yaml`, `zod` **and** `@modelcontextprotocol/client`). Two workable targets:
+> **Step 1 (the normal path): install dependencies in the repo root**
 >
-> ```powershell
-> # Target A (recommended): the host install's node_modules — most complete
-> New-Item -ItemType Junction `
->   -Path '<repo absolute path>\node_modules' `
->   -Target '<DSH install dir>\node_modules'
->
-> # Target B: the profile's module fallback layer
-> New-Item -ItemType Junction `
->   -Path '<repo absolute path>\node_modules' `
->   -Target "$env:USERPROFILE\.dsh\profiles\node_modules"
+> ```sh
+> npm install
 > ```
 >
-> Target B lacks `@modelcontextprotocol/client` in some environments (that directory only exposes
-> `sdk`, and it may be a broken link); use target A there. To verify, run
-> `node -e "import('./lib/index.js').then(()=>console.log('OK')).catch(e=>console.error(e.message))"`:
-> `OK` means it works; `Cannot find package '...'` means that target layer lacks the package, so
-> switch targets.
+> That puts `dependencies` (`@modelcontextprotocol/client`, `zod`, `js-yaml`) into the repo's
+> `node_modules`, matching what a real install does. `@deepseek-ai/*` are peers and are *not*
+> installed by it — the host still has to resolve those. If the boot log reports
+> `Cannot find package '@deepseek-ai/...'`, add the link below.
 >
-> This link is **development-only**, is gitignored, and must be recreated after a fresh clone or on
+> **Step 2 (only if needed): link the host framework modules**
+>
+> ```powershell
+> # Target A (recommended): the host install's node_modules — most complete for @deepseek-ai/*
+> New-Item -ItemType Junction `
+>   -Path '<repo absolute path>\node_modules\@deepseek-ai' `
+>   -Target '<DSH install dir>\node_modules\@deepseek-ai'
+> ```
+>
+> Note it links the **`@deepseek-ai` subdirectory**: linking all of `node_modules` would clobber the
+> dependencies installed in step 1. If the host install lacks a package you need, you can point at
+> `$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai` instead.
+>
+> To verify: `node -e "import('./lib/index.js').then(()=>console.log('OK')).catch(e=>console.error(e.message))"`
+> — `OK` means it works; whatever package it names in `Cannot find` is the one still missing.
+>
+> The link is **development-only**, is gitignored, and must be recreated after a fresh clone or on
 > another machine.
 
 ### 2. Registration
@@ -225,22 +237,31 @@ Then **restart `dsh web`** and **hard-refresh the browser** (`Cmd/Ctrl + Shift +
 **Q0: the boot log says `dsh:warning:1 entry did not activate dsh-mcp (failed to import)`?**
 
 That is a **host-half dependency resolution failure**, unrelated to the bundle declaration (a
-different layer). With a local `link:` install it is almost guaranteed until the repo gets a
-`node_modules` link (see the warning under install option 3):
+different layer). Reproduce it first to get the exact missing package name:
 
-1. Reproduce it and read the full error:
+```sh
+# with a link: install, run this in the repo root
+node -e "import('./lib/index.js').catch(e => console.error(e.message))"
+```
 
-   ```sh
-   node -e "import('./lib/index.js').catch(e => console.error(e.message))"
-   ```
+Then branch on the missing name:
 
-   Typical: `Cannot find package '@deepseek-ai/cordis' imported from .../lib/index.js`.
-2. Check whether the repo root has a `node_modules` (`link:` installs require it, and it must be a
-   **link/junction**, not an ordinary directory).
-3. Recreate that link as described in the warning under option 3. The target layer needs
-   `@deepseek-ai/*`, `js-yaml`, `zod` **and** `@modelcontextprotocol/client`; on this machine the
-   host install's `node_modules` is the most complete.
-4. Re-run step 1: printing the export list means it is fixed — then restart `dsh web`.
+- **`Cannot find package '@deepseek-ai/...'` → a `link:` install is missing the link.**
+  `link:` points the profile's `node_modules/<name>` at this repository, and Node realpath-resolves
+  upward from the repo's real path; with no `node_modules` there, the host framework modules all fail
+  to resolve. Create the link as described in the warning under install option 3 (the target layer
+  must contain `@deepseek-ai/*`; on this machine the host install's `node_modules` is the most
+  complete).
+
+- **`Cannot find package '@modelcontextprotocol/client'` (or `zod`, `js-yaml`) → the dependency was
+  never installed.** These three are `dependencies` and must be written into the **plugin's own
+  `node_modules`** by the package manager at install time. They must **not** rely on host resolution:
+  `@modelcontextprotocol/client` exists only inside DSH's own nested `node_modules`, which neither
+  the profile layer nor the user layer can reach.
+  - GitHub/git install: make sure you are on a version **after 1.13.0** (earlier releases omitted
+    `js-yaml`, and `@modelcontextprotocol/client` is unreachable in some environments).
+  - Local `link:`: run `npm install` in the repo root — that installs the three packages from
+    `dependencies` and matches what a real install does, rather than hand-building a junction.
 
 > Note: `node -e` runs outside DSH, so it only proves the modules resolve. The `dsh web` boot log is
 > the final word.
