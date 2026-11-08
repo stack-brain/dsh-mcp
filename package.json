@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/client": "2.0.0",
+    "js-yaml": "^4.1.0",
     "zod": "^4.2.0"
   },
   "author": "Arvin.qi <arvin.qi@qq.com>",
@@ -41,7 +42,7 @@
     "url": "https://github.com/ArvinQi/dsh-mcp/issues"
   },
   "dsh": {
-    "supported": "0.2.0-rc.2",
+    "supported": "0.2.2-rc.1",
     "bundle": {
       "patch": "./cordis.patch.yml"
     },

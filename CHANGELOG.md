@@ -9,8 +9,21 @@
 
 ## 兼容性
 
-- **支持版本**：**dsh `0.2.0-rc.2`** —— 最新版本在 `0.2.0-rc.2` 上开发与验证（`package.json` → `dsh.supported` 同步声明）；历史版本条目各自声明当时验证的版本。DSH 与插件版本不匹配时，设置页会给出排查诊断（核对 bundle 是否已选中 → 重启 `dsh web` → 硬刷新 → 同步升级）。
+- **支持版本**：**dsh `0.2.2-rc.1`** —— 上游 1.15.0 的开发验证版本是 `0.2.0-rc.2`，本次本地适配以本机实际安装的 `0.2.2-rc.1`（npm 全局 `@deepseek-ai/dsh` 与 DeepSeek Harness.app 同版本）为准，`package.json` → `dsh.supported` 同步声明；历史版本条目各自声明当时验证的版本。DSH 与插件版本不匹配时，设置页会给出排查诊断（核对 bundle 是否已选中 → 重启 `dsh web` → 硬刷新 → 同步升级）。
+- **0.2.2 的能力边界**：DSH ≥ 0.2.2 把工具列表挂到 `system-prompt/assemble` waterfall **之后**，插件在该接缝上无法再过滤工具（核心随后会用自己那份 `tools` 覆盖钩子写回的值）。1.15.0 起按「降级跳过」处理——不抛错、不修改 assembly、只发一条一次性 `warn`；因此**按工具开关过滤与 search 模式热注入在 0.2.2 上不生效**，但 MCP 工具本身全部可用。需要这两项能力时，必须等宿主提供工具级的动态扩展点，不是插件侧能单独补回的。
 - **发版约定**：每个版本条目都要声明 `- **支持版本**：dsh <版本>`，并在 GitHub Release notes 中同步。Release 正文用**中文**（与本文档一致），标题层级与条目一致。
+
+## [Unreleased]
+
+- **支持版本**：**dsh `0.2.2-rc.1`**
+
+### 变更
+
+- **版本声明与文档对齐本机宿主**：上游 1.15.0 的 `dsh.supported` 仍写 `0.2.0-rc.2`，但其中的 `3f232f9` 修复正是针对 0.2.2 的装配协议变更（`assembly.tools is not iterable`）。本机安装的是 `0.2.2-rc.1`，现把 `package.json`、README、CHANGELOG 的兼容性声明统一为 `0.2.2-rc.1`，避免设置页给出版本不匹配的误导性诊断。
+- **写清降级边界**：在兼容性章节明确「0.2.2 上可加载，但工具开关 / search 热注入失效」，避免把降级误判为插件故障。
+- **补回 `js-yaml` 运行时依赖（上游 1.15.0 的回归）**：`lib/cordis-servers.js` 一直 `import * as yaml from "js-yaml"`，但 ArvinQi 1.15.0 的 `package.json` 删掉了这条声明（`stack-brain` fork 的 `74796ba` 当年正是补它）。本机两个 profile 因 1.13.0 装过、`pnpm-lock.yaml` 仍有条目而侥幸可解析，但**从仓库全新安装会在插件激活时抛 `Cannot find package 'js-yaml'`**。现重新声明 `^4.1.0`（代码用的是 js-yaml 4 的 `yaml.load` API），并新增回归测试：锁定 `lib/` 里所有非宿主外部 import 都必须在 `dependencies` 中声明。
+- **回归测试**：新增 `test/host-compat.test.mjs`，锁定版本声明一致性、运行时依赖完整性，并覆盖 `assembly.tools` 为 `undefined` / `null` / 非数组对象 / Promise 等形态时 `applyToolControl` 安全降级且不修改 assembly。
+- 本次只改宿主版本声明、文档与测试；`lib/client.js` 等构建产物沿用 1.15.0 上游产物，未重新构建。
 
 ## [1.15.0] - 2026-11-06
 

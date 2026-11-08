@@ -4,7 +4,7 @@
 
 [![dshfind](https://dshfind.com/api/badge/ArvinQi/dsh-mcp?lang=zh)](https://dshfind.com/zh/plugins/ArvinQi/dsh-mcp?ref=badge)
 
-> **支持版本**：`dsh 0.2.0-rc.2` —— 最新版本在 `0.2.0-rc.2` 上开发与验证，`package.json` → `dsh.supported` 同步声明。DSH 与插件两侧版本不匹配时，设置页会给出排查诊断（检查 bundle 是否已选中 → 重启 `dsh web` → 硬刷新 → 同步升级）。
+> **支持版本**：`dsh 0.2.2-rc.1` —— 上游 1.15.0 在 `0.2.0-rc.2` 上开发验证，本次本地适配以本机实际安装的 `0.2.2-rc.1` 为准，`package.json` → `dsh.supported` 同步声明。DSH 与插件两侧版本不匹配时，设置页会给出排查诊断（检查 bundle 是否已选中 → 重启 `dsh web` → 硬刷新 → 同步升级）。**注意**：DSH ≥ 0.2.2 把工具列表挂到装配 waterfall 之后，插件按「降级跳过」运行，工具开关过滤与 search 模式热注入不生效（MCP 工具本身仍全部可用），详见 CHANGELOG → 兼容性。
 
 ![设置页预览](static/snapshot.webp)
 

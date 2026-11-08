@@ -9,8 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Compatibility
 
-- **Supported DSH version**: **dsh `0.2.0-rc.2`** — the latest release is developed and verified on `0.2.0-rc.2` (declared in `package.json` → `dsh.supported`); older entries state the version verified at their time. When the DSH and plugin versions do not match, the Settings page reports a diagnosis (check whether the bundle is selected → restart `dsh web` → hard-refresh → upgrade both sides).
+- **Supported DSH version**: **dsh `0.2.2-rc.1`** — upstream 1.15.0 was developed and verified on `0.2.0-rc.2`; this local adaptation targets the installed `0.2.2-rc.1` (npm global `@deepseek-ai/dsh` and the DeepSeek Harness app are the same version), declared in `package.json` → `dsh.supported`; older entries state the version verified at their time. When the DSH and plugin versions do not match, the Settings page reports a diagnosis (check whether the bundle is selected → restart `dsh web` → hard-refresh → upgrade both sides).
+- **Capability boundary on 0.2.2**: DSH >= 0.2.2 attaches the tool list **after** the `system-prompt/assemble` waterfall, so the plugin can no longer filter tools at that seam (the core overwrites anything the hook writes back). Since 1.15.0 the hook degrades to a no-op — no throw, no mutation, one-time `warn` — which means **per-tool switches and search-mode hot-tool injection are inactive on 0.2.2**, while all MCP tools remain available. Restoring those two features requires a tool-level extension point in the host; the plugin cannot do it alone.
 - **Release convention**: every version entry states `- **Supported DSH version**: dsh <version>`, mirrored in the GitHub Release notes. The release body is written in **Chinese** (matching [CHANGELOG.md](CHANGELOG.md)), with heading levels mirroring the entry.
+
+## [Unreleased]
+
+- **Supported DSH version**: **dsh `0.2.2-rc.1`**
+
+### Changed
+
+- **Align the declared host version with the local install**: upstream 1.15.0 still declares `0.2.0-rc.2`, even though its `3f232f9` fix targets the 0.2.2 assembly protocol change (`assembly.tools is not iterable`). This machine runs `0.2.2-rc.1`, so `package.json`, README and CHANGELOG now declare `0.2.2-rc.1` consistently, avoiding a misleading version-mismatch diagnosis on the Settings page.
+- **Document the degraded behaviour**: state explicitly that the plugin loads on 0.2.2 but per-tool switches / search-mode injection are inactive, so the degradation is not mistaken for a plugin fault.
+- **Restore the `js-yaml` runtime dependency (regression in upstream 1.15.0)**: `lib/cordis-servers.js` has always imported `js-yaml`, but upstream 1.15.0 dropped it from `package.json` (the `stack-brain` fork commit `74796ba` added it for exactly this reason). Both local profiles still resolve it only because 1.13.0 installed it and `pnpm-lock.yaml` retains the entry — a fresh install from the repository would fail at plugin activation with `Cannot find package 'js-yaml'`. Declared again as `^4.1.0` (the code uses js-yaml 4's `yaml.load`). A regression test now asserts that every non-host runtime import under `lib/` is declared in `dependencies`.
+- **Regression tests**: add `test/host-compat.test.mjs` to lock the version declarations and runtime dependency completeness, and verify `applyToolControl` degrades safely (without mutating the assembly) when `assembly.tools` is `undefined`, `null`, a non-array object or a Promise.
+- Host declaration, docs and tests only; `lib/client.js` and other build artefacts are kept from upstream 1.15.0 and were not rebuilt.
 
 ## [1.15.0] - 2026-11-06
 
